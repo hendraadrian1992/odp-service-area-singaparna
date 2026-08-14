@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Map Interaktif ALPRO SA Singaparna</title>
     
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Leaflet MarkerCluster CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <!-- 1. LEAFLET CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <!-- 2. MARKER CLUSTER CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,7 +27,7 @@
             z-index: 1000;
             position: relative;
         }
-        .title { font-size: 16px; font-weight: bold; }
+        .title { font-size: 15px; font-weight: bold; }
         .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         
         select, input, button {
@@ -74,13 +74,12 @@
 </head>
 <body>
 
-    <!-- Header Bar -->
+    <!-- Header / Navbar -->
     <div class="navbar">
         <div class="title">📍 Web Map ALPRO SA Singaparna</div>
         <div class="controls">
             <span class="stats" id="odp-count">Memuat data...</span>
             
-            <!-- Filter STO -->
             <select id="sto-filter">
                 <option value="ALL">Semua STO</option>
                 <option value="SPA">SPA</option>
@@ -92,10 +91,7 @@
                 <option value="CBL">CBL</option>
             </select>
             
-            <!-- Cari Nama ODP -->
             <input type="text" id="search-input" placeholder="Cari Nama ODP..." />
-
-            <!-- Cari Berdasarkan Koordinat -->
             <input type="text" id="coord-input" placeholder="-7.507036, 108.188789" style="width: 170px;" />
             <button class="btn-search-coord" onclick="searchCoordinate()">Go</button>
         </div>
@@ -104,9 +100,9 @@
     <!-- Container Peta -->
     <div id="map"></div>
 
-    <!-- JS Libraries -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
+    <!-- SCRIPT LIBRARIES (URUTAN DIPASTIKAN BENAR) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <script>
@@ -134,11 +130,10 @@
         map.addLayer(markersCluster);
 
         let allData = [];
-        let markerMap = new Map(); // Simpan reference marker untuk pencarian presisi
-        let tempCoordMarker = null; // Marker sementara untuk pencarian koordinat manual
+        let tempCoordMarker = null;
 
-        // MASUKKAN LINK CSV GOOGLE SHEETS ANDA DI SINI
-        const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTYutGVHik1VwM4CILpvv_Am2Yl-XJxY98LpBOI5_VHPhPOVq9NUccolQgaqJ6GcRlwjMTR6-ik2QCp/pub?gid=145893647&single=true&output=csv'; 
+        // PASTE LINK CSV GOOGLE SHEETS ANDA DI SINI
+        const DATA_URL = 'PASTE_LINK_CSV_GOOGLE_SHEETS_DI_SINI'; 
 
         function loadData() {
             Papa.parse(DATA_URL, {
@@ -150,7 +145,7 @@
                     renderMarkers(allData);
                 },
                 error: function(err) {
-                    console.error("Gagal membaca data CSV:", err);
+                    console.error("Gagal membaca CSV:", err);
                     alert("Gagal memuat data! Pastikan link CSV Google Sheets sudah benar.");
                 }
             });
@@ -158,36 +153,39 @@
 
         function renderMarkers(data) {
             markersCluster.clearLayers();
-            markerMap.clear();
             const markersList = [];
             let validCount = 0;
 
             data.forEach(row => {
-                const lat = parseFloat(row.LATITUDE);
-                const lng = parseFloat(row.LONGITUDE);
+                // Pembersihan nama header otomatis
+                const cleanRow = {};
+                for (let key in row) {
+                    if (row.hasOwnProperty(key)) {
+                        cleanRow[key.trim().toUpperCase()] = row[key];
+                    }
+                }
+
+                const lat = parseFloat(cleanRow['LATITUDE']);
+                const lng = parseFloat(cleanRow['LONGITUDE']);
 
                 if (!isNaN(lat) && !isNaN(lng)) {
                     validCount++;
                     const popupContent = `
-                        <div class="popup-title">📦 ${row['NAMA ODP'] || 'ODP Tanpa Nama'}</div>
+                        <div class="popup-title">📦 ${cleanRow['NAMA ODP'] || 'ODP Tanpa Nama'}</div>
                         <hr style="margin: 4px 0 8px 0; border: 0; border-top: 1px solid #e2e8f0;">
                         <table class="popup-table">
-                            <tr><td class="label">STO</td><td>: <b>${row.STO || '-'}</b></td></tr>
-                            <tr><td class="label">Service Area</td><td>: ${row['SERVICE AREA'] || '-'}</td></tr>
-                            <tr><td class="label">Branch</td><td>: ${row.BRANCH || '-'}</td></tr>
-                            <tr><td class="label">Keterangan</td><td>: ${row.KETERANGAN || '-'}</td></tr>
+                            <tr><td class="label">STO</td><td>: <b>${cleanRow['STO'] || '-'}</b></td></tr>
+                            <tr><td class="label">Service Area</td><td>: ${cleanRow['SERVICE AREA'] || '-'}</td></tr>
+                            <tr><td class="label">Branch</td><td>: ${cleanRow['BRANCH'] || '-'}</td></tr>
+                            <tr><td class="label">Keterangan</td><td>: ${cleanRow['KETERANGAN'] || '-'}</td></tr>
                             <tr><td class="label">Koordinat</td><td>: ${lat.toFixed(6)}, ${lng.toFixed(6)}</td></tr>
-                            <tr><td class="label">Updated</td><td>: ${row.TIMESTAMP || '-'}</td></tr>
+                            <tr><td class="label">Updated</td><td>: ${cleanRow['TIMESTAMP'] || '-'}</td></tr>
                         </table>
                         <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="btn-gmaps">📍 Petunjuk Arah (Google Maps)</a>
                     `;
 
                     const marker = L.marker([lat, lng]).bindPopup(popupContent);
                     markersList.push(marker);
-
-                    if (row['NAMA ODP']) {
-                        markerMap.set(row['NAMA ODP'].trim().toLowerCase(), marker);
-                    }
                 }
             });
 
@@ -195,32 +193,32 @@
             document.getElementById('odp-count').innerText = `Total ODP: ${validCount.toLocaleString('id-ID')}`;
         }
 
-        // Fitur Filter STO & Nama ODP
         function filterData() {
             const selectedSTO = document.getElementById('sto-filter').value;
             const searchKeyword = document.getElementById('search-input').value.toLowerCase().trim();
 
             const filtered = allData.filter(row => {
-                const matchSTO = (selectedSTO === 'ALL') || (row.STO === selectedSTO);
-                const matchSearch = !searchKeyword || (row['NAMA ODP'] && row['NAMA ODP'].toLowerCase().includes(searchKeyword));
+                const stoVal = (row['STO'] || row['sto'] || '').toString();
+                const namaVal = (row['NAMA ODP'] || row['nama odp'] || '').toString().toLowerCase();
+
+                const matchSTO = (selectedSTO === 'ALL') || (stoVal === selectedSTO);
+                const matchSearch = !searchKeyword || namaVal.includes(searchKeyword);
                 return matchSTO && matchSearch;
             });
 
             renderMarkers(filtered);
         }
 
-        // 🎯 FITUR BARU: Pencarian Berdasarkan Koordinat
         function searchCoordinate() {
             const inputVal = document.getElementById('coord-input').value.trim();
             if (!inputVal) {
-                alert("Masukkan koordinat dalam format: Lat, Long (contoh: -7.507036, 108.188789)");
+                alert("Masukkan koordinat format: Lat, Long (contoh: -7.507036, 108.188789)");
                 return;
             }
 
-            // Pisahkan Lat dan Long berdasarkan koma atau spasi
             const parts = inputVal.split(/[\s,]+/);
             if (parts.length < 2) {
-                alert("Format koordinat tidak valid! Gunakan format: -7.507036, 108.188789");
+                alert("Format koordinat tidak valid!");
                 return;
             }
 
@@ -228,31 +226,24 @@
             const lng = parseFloat(parts[1]);
 
             if (isNaN(lat) || isNaN(lng)) {
-                alert("Nilai Latitude atau Longitude harus berupa angka!");
+                alert("Koordinat harus berupa angka!");
                 return;
             }
 
-            // Hapus marker pencarian sementara sebelumnya jika ada
-            if (tempCoordMarker) {
-                map.removeLayer(tempCoordMarker);
-            }
+            if (tempCoordMarker) map.removeLayer(tempCoordMarker);
 
-            // Zoom ke lokasi koordinat
             map.setView([lat, lng], 18);
-
-            // Tambahkan marker pencarian khusus koordinat
             tempCoordMarker = L.marker([lat, lng]).addTo(map)
                 .bindPopup(`
                     <div style="text-align:center;">
-                        <b>🎯 Hasil Pencarian Koordinat</b><br>
+                        <b>🎯 Lokasi Koordinat Cari</b><br>
                         <span>${lat}, ${lng}</span><br><br>
-                        <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="btn-gmaps">📍 Buka di Google Maps</a>
+                        <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="btn-gmaps">📍 Google Maps</a>
                     </div>
                 `)
                 .openPopup();
         }
 
-        // Event Listeners
         document.getElementById('sto-filter').addEventListener('change', filterData);
         document.getElementById('search-input').addEventListener('input', filterData);
         document.getElementById('coord-input').addEventListener('keypress', function(e) {

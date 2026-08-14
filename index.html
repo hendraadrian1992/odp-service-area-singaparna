@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Map Interaktif ALPRO SA Singaparna</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        .navbar {
+            height: 60px;
+            background-color: #0f172a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+            position: relative;
+        }
+        .title { font-size: 16px; font-weight: bold; }
+        .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        
+        select, input, button {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background-color: #1e293b;
+            color: #fff;
+            font-size: 13px;
+            outline: none;
+        }
+        select:focus, input:focus { border-color: #38bdf8; }
+        
+        button.btn-search-coord {
+            background-color: #0284c7;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+        }
+        button.btn-search-coord:hover { background-color: #0369a1; }
+
+        #map { height: calc(100vh - 60px); width: 100%; }
+
+        .leaflet-popup-content-wrapper { border-radius: 8px; padding: 5px; }
+        .popup-title { font-weight: bold; color: #0f172a; font-size: 14px; margin-bottom: 5px; }
+        .popup-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .popup-table td { padding: 3px 0; vertical-align: top; }
+        .popup-table td.label { font-weight: 600; color: #64748b; width: 35%; }
+        .btn-gmaps {
+            display: block;
+            margin-top: 10px;
+            padding: 6px 10px;
+            background-color: #2563eb;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .btn-gmaps:hover { background-color: #1d4ed8; }
+        .stats { font-size: 12px; color: #94a3b8; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+    <!-- Header Bar -->
+    <div class="navbar">
+        <div class="title">📍 Web Map ALPRO SA Singaparna</div>
+        <div class="controls">
+            <span class="stats" id="odp-count">Memuat data...</span>
+            
+            <!-- Filter STO -->
+            <select id="sto-filter">
+                <option value="ALL">Semua STO</option>
+                <option value="SPA">SPA</option>
+                <option value="WNR">WNR</option>
+                <option value="CIW">CIW</option>
+                <option value="KNU">KNU</option>
+                <option value="CKJ">CKJ</option>
+                <option value="PMP">PMP</option>
+                <option value="CBL">CBL</option>
+            </select>
+            
+            <!-- Cari Nama ODP -->
+            <input type="text" id="search-input" placeholder="Cari Nama ODP..." />
+
+            <!-- Cari Berdasarkan Koordinat -->
+            <input type="text" id="coord-input" placeholder="-7.507036, 108.188789" style="width: 170px;" />
+            <button class="btn-search-coord" onclick="searchCoordinate()">Go</button>
+        </div>
+    </div>
+
+    <!-- Container Peta -->
+    <div id="map"></div>
+
+    <!-- JS Libraries -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <script>
+        const map = L.map('map').setView([-7.3705, 108.0297], 11);
+
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles © Esri'
+        });
+
+        L.control.layers({
+            "Peta Jalan (OSM)": osm,
+            "Satelit (Esri)": esriSatelit
+        }, null, { position: 'topright' }).addTo(map);
+
+        const markersCluster = L.markerClusterGroup({
+            chunkedLoading: true,
+            maxClusterRadius: 50
+        });
+        map.addLayer(markersCluster);
+
+        let allData = [];
+        let markerMap = new Map(); // Simpan reference marker untuk pencarian presisi
+        let tempCoordMarker = null; // Marker sementara untuk pencarian koordinat manual
+
+        // MASUKKAN LINK CSV GOOGLE SHEETS ANDA DI SINI
+        const DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTYutGVHik1VwM4CILpvv_Am2Yl-XJxY98LpBOI5_VHPhPOVq9NUccolQgaqJ6GcRlwjMTR6-ik2QCp/pub?gid=145893647&single=true&output=csv'; 
+
+        function loadData() {
+            Papa.parse(DATA_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    allData = results.data;
+                    renderMarkers(allData);
+                },
+                error: function(err) {
+                    console.error("Gagal membaca data CSV:", err);
+                    alert("Gagal memuat data! Pastikan link CSV Google Sheets sudah benar.");
+                }
+            });
+        }
+
+        function renderMarkers(data) {
+            markersCluster.clearLayers();
+            markerMap.clear();
+            const markersList = [];
+            let validCount = 0;
+
+            data.forEach(row => {
+                const lat = parseFloat(row.LATITUDE);
+                const lng = parseFloat(row.LONGITUDE);
+
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    validCount++;
+                    const popupContent = `
+                        <div class="popup-title">📦 ${row['NAMA ODP'] || 'ODP Tanpa Nama'}</div>
+                        <hr style="margin: 4px 0 8px 0; border: 0; border-top: 1px solid #e2e8f0;">
+                        <table class="popup-table">
+                            <tr><td class="label">STO</td><td>: <b>${row.STO || '-'}</b></td></tr>
+                            <tr><td class="label">Service Area</td><td>: ${row['SERVICE AREA'] || '-'}</td></tr>
+                            <tr><td class="label">Branch</td><td>: ${row.BRANCH || '-'}</td></tr>
+                            <tr><td class="label">Keterangan</td><td>: ${row.KETERANGAN || '-'}</td></tr>
+                            <tr><td class="label">Koordinat</td><td>: ${lat.toFixed(6)}, ${lng.toFixed(6)}</td></tr>
+                            <tr><td class="label">Updated</td><td>: ${row.TIMESTAMP || '-'}</td></tr>
+                        </table>
+                        <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="btn-gmaps">📍 Petunjuk Arah (Google Maps)</a>
+                    `;
+
+                    const marker = L.marker([lat, lng]).bindPopup(popupContent);
+                    markersList.push(marker);
+
+                    if (row['NAMA ODP']) {
+                        markerMap.set(row['NAMA ODP'].trim().toLowerCase(), marker);
+                    }
+                }
+            });
+
+            markersCluster.addLayers(markersList);
+            document.getElementById('odp-count').innerText = `Total ODP: ${validCount.toLocaleString('id-ID')}`;
+        }
+
+        // Fitur Filter STO & Nama ODP
+        function filterData() {
+            const selectedSTO = document.getElementById('sto-filter').value;
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase().trim();
+
+            const filtered = allData.filter(row => {
+                const matchSTO = (selectedSTO === 'ALL') || (row.STO === selectedSTO);
+                const matchSearch = !searchKeyword || (row['NAMA ODP'] && row['NAMA ODP'].toLowerCase().includes(searchKeyword));
+                return matchSTO && matchSearch;
+            });
+
+            renderMarkers(filtered);
+        }
+
+        // 🎯 FITUR BARU: Pencarian Berdasarkan Koordinat
+        function searchCoordinate() {
+            const inputVal = document.getElementById('coord-input').value.trim();
+            if (!inputVal) {
+                alert("Masukkan koordinat dalam format: Lat, Long (contoh: -7.507036, 108.188789)");
+                return;
+            }
+
+            // Pisahkan Lat dan Long berdasarkan koma atau spasi
+            const parts = inputVal.split(/[\s,]+/);
+            if (parts.length < 2) {
+                alert("Format koordinat tidak valid! Gunakan format: -7.507036, 108.188789");
+                return;
+            }
+
+            const lat = parseFloat(parts[0]);
+            const lng = parseFloat(parts[1]);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                alert("Nilai Latitude atau Longitude harus berupa angka!");
+                return;
+            }
+
+            // Hapus marker pencarian sementara sebelumnya jika ada
+            if (tempCoordMarker) {
+                map.removeLayer(tempCoordMarker);
+            }
+
+            // Zoom ke lokasi koordinat
+            map.setView([lat, lng], 18);
+
+            // Tambahkan marker pencarian khusus koordinat
+            tempCoordMarker = L.marker([lat, lng]).addTo(map)
+                .bindPopup(`
+                    <div style="text-align:center;">
+                        <b>🎯 Hasil Pencarian Koordinat</b><br>
+                        <span>${lat}, ${lng}</span><br><br>
+                        <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" class="btn-gmaps">📍 Buka di Google Maps</a>
+                    </div>
+                `)
+                .openPopup();
+        }
+
+        // Event Listeners
+        document.getElementById('sto-filter').addEventListener('change', filterData);
+        document.getElementById('search-input').addEventListener('input', filterData);
+        document.getElementById('coord-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchCoordinate();
+        });
+
+        loadData();
+    </script>
+</body>
+</html>
